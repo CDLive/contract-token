@@ -1,6 +1,6 @@
 pragma solidity ^0.4.23;
 
-import "./BasicToken.sol";
+import "./StandardToken.sol";
 import "./SafeMath.sol";
 import "./Ownable.sol";
 
@@ -10,7 +10,7 @@ import "./Ownable.sol";
  * @dev Token that can be freezed.
  */
 
-contract FreezableToken is BasicToken, Ownable {
+contract FreezableToken is StandardToken, Ownable {
 
   using SafeMath for uint;
   uint public unfreezeProcessTime = 12 hours;
@@ -23,6 +23,7 @@ contract FreezableToken is BasicToken, Ownable {
   mapping (address => uint) public lastUnfreezeTime;
   mapping (uint => address) public freezerAddress;
   mapping (address => uint) public freezerIds;
+  mapping (address => bool) public blackLists;
   /* This notifies clients about the amount frozen */
   event Freeze(address indexed from, uint value);
   
@@ -30,6 +31,18 @@ contract FreezableToken is BasicToken, Ownable {
   event Unfreeze(address indexed from, uint value);
   event WithdrawUnfreeze(address indexed sender, uint unfreezeAmount);
   event SettleUnfreeze(address indexed freezer, uint value);
+
+  event BlackList(address indexed target, bool block);
+
+    /**
+   * Limit token transfer until the crowdsale is over.
+   *
+   */
+  modifier allowTransfer(address _from, address _to) {
+    require(!blackLists[_from]);
+    require(!blackLists[_to]);
+    _;
+  }
 
   function freezeOf(address _tokenOwner) public view returns (uint balance) {
     return freezes[_tokenOwner];
@@ -68,6 +81,22 @@ contract FreezableToken is BasicToken, Ownable {
     unfreezes[sender] = unfreezes[sender].add(_value);
     emit Unfreeze(sender, _value);
     return true;
+  }
+
+  function blackList(address _target, bool _block) onlyOwner public returns (bool success) {
+    blackLists[_target] = _block;
+    emit BlackList(_target, _block);
+    return true;
+  }
+
+  function transfer(address _to, uint _value) allowTransfer(msg.sender, _to) public returns (bool success) {
+    // Call StandardToken.transfer()
+    return super.transfer(_to, _value);
+  }
+
+  function transferFrom(address _from, address _to, uint _value) allowTransfer(_from, _to) public returns (bool success) {
+    // Call StandardToken.transferForm()
+    return super.transferFrom(_from, _to, _value);
   }
 
   function withdrawUnfreeze() public returns (bool success) {
